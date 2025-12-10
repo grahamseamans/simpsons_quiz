@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simpsons Quote Quiz</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Simpsons Quote Quiz</h1>
+  <p>Guess the episode from the quote!</p>
+
+  <p><b>Score:</b> <span id="score">100</span> points</p>
+
+  <h2>The Quote</h2>
+  <p id="quote-text">Loading...</p>
+
+  <div id="revealed-panel" style="display: none;">
+    <h2>Revealed</h2>
+    <p id="season-hint" style="display: none;">Season: <b id="season-value"></b></p>
+    <p id="episode-hint" style="display: none;">Episode: <b id="episode-value"></b></p>
+    <div id="image-container" style="display: none;">
+      <img id="scene-image" src="" alt="Scene screenshot" style="max-width: 100%;">
+    </div>
+  </div>
+
+  <h2>Hints</h2>
+  <p>
+    <button id="reveal-image">Reveal Image (-30 pts)</button>
+    <button id="reveal-season">Reveal Season (-20 pts)</button>
+    <button id="reveal-episode">Reveal Episode # (-40 pts)</button>
+  </p>
+
+  <h2>Your Guess</h2>
+  <div class="form-group">
+    <input type="text" id="guess-input" placeholder="Type episode title..." autocomplete="off" size="40">
+    <ul id="autocomplete-list" class="autocomplete-list"></ul>
+  </div>
+  <p>
+    <button id="submit-guess">Submit Guess</button>
+  </p>
+
+  <div id="result-panel" style="display: none;">
+    <h2 id="result-text"></h2>
+    <p id="correct-answer"></p>
+    <p id="final-score"></p>
+    <button id="play-again">Play Again</button>
+  </div>
+
+  <div id="loading" style="display: none;">
+    <p>Loading new quote...</p>
+  </div>
+
+  <hr>
+  <p>Powered by <a href="https://frinkiac.com" target="_blank">Frinkiac</a></p>
+
+  <script src="game.js"></script>
+</body>
+</html>
