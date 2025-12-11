@@ -1,11 +1,14 @@
 // === CONFIG ===
 const CONFIG = {
-  allowedSeasons: [1, 2, 3, 4, 5],
   startingPoints: 100,
   hintCosts: {
     image: 30,
     season: 20,
     episodeNumber: 40
+  },
+  bonusPoints: {
+    season: 25,
+    episode: 50
   },
   minQuoteWords: 5,
   similarityThreshold: 0.75
@@ -14,18 +17,35 @@ const CONFIG = {
 // === STATE ===
 let state = {
   scene: null,
-  points: CONFIG.startingPoints,
+  roundPoints: CONFIG.startingPoints,
+  totalPoints: 0,
+  roundsPlayed: 0,
   revealed: new Set(),
   guessed: false,
-  won: false
+  won: false,
+  seasonRange: { min: 1, max: 9 }
 };
 
 let episodes = [];
 
 // === DOM ELEMENTS ===
 const els = {
-  score: document.getElementById('score'),
+  // Settings
+  seasonMin: document.getElementById('season-min'),
+  seasonMax: document.getElementById('season-max'),
+
+  // Stats
+  totalScore: document.getElementById('total-score'),
+  roundScore: document.getElementById('round-score'),
+  roundsPlayed: document.getElementById('rounds-played'),
+
+  // Panels
+  gamePanel: document.getElementById('game-panel'),
+
+  // Quote
   quoteText: document.getElementById('quote-text'),
+
+  // Revealed hints
   revealedPanel: document.getElementById('revealed-panel'),
   imageContainer: document.getElementById('image-container'),
   sceneImage: document.getElementById('scene-image'),
@@ -36,19 +56,30 @@ const els = {
   seasonValue: document.getElementById('season-value'),
   episodeHint: document.getElementById('episode-hint'),
   episodeValue: document.getElementById('episode-value'),
+
+  // Guess inputs
   guessInput: document.getElementById('guess-input'),
   autocompleteList: document.getElementById('autocomplete-list'),
+  guessSeason: document.getElementById('guess-season'),
+  guessEpisode: document.getElementById('guess-episode'),
   submitGuess: document.getElementById('submit-guess'),
+
+  // Result panel
   resultPanel: document.getElementById('result-panel'),
   resultText: document.getElementById('result-text'),
-  correctAnswer: document.getElementById('correct-answer'),
-  finalScore: document.getElementById('final-score'),
-  playAgain: document.getElementById('play-again'),
+  resultImage: document.getElementById('result-image'),
+  resultEpisodeInfo: document.getElementById('result-episode-info'),
+  bonusResult: document.getElementById('bonus-result'),
+  roundScoreResult: document.getElementById('round-score-result'),
+  sessionTotal: document.getElementById('session-total'),
+  sessionRounds: document.getElementById('session-rounds'),
+  sessionAvg: document.getElementById('session-avg'),
+  nextRound: document.getElementById('next-round'),
+
   loading: document.getElementById('loading')
 };
 
 // === FRINKIAC API ===
-// Using CORS proxy since Frinkiac doesn't allow browser requests
 const CORS_PROXY = 'https://corsproxy.io/?';
 
 async function fetchRandomScene() {
@@ -58,7 +89,6 @@ async function fetchRandomScene() {
 }
 
 function getImageUrl(scene) {
-  // Images work without CORS proxy
   return `https://frinkiac.com/img/${scene.Frame.Episode}/${scene.Frame.Timestamp}.jpg`;
 }
 
@@ -69,22 +99,17 @@ function getQuoteText(scene) {
 }
 
 function isValidQuote(scene) {
-  // Check season
   const season = scene.Episode.Season;
-  if (!CONFIG.allowedSeasons.includes(season)) return false;
+  if (season < state.seasonRange.min || season > state.seasonRange.max) return false;
 
-  // Check quote content
   const quote = getQuoteText(scene);
   if (!quote) return false;
 
-  // Check minimum words
   const words = quote.trim().split(/\s+/);
   if (words.length < CONFIG.minQuoteWords) return false;
 
-  // Reject sound effects like [GRUNTING]
   if (quote.trim().startsWith('[')) return false;
 
-  // Reject if mostly uppercase bracketed content (sound effects)
   const bracketedContent = quote.match(/\[[^\]]+\]/g);
   if (bracketedContent) {
     const bracketedLength = bracketedContent.join('').length;
@@ -174,31 +199,52 @@ function checkAnswer(guess) {
 function revealHint(hintType) {
   if (state.revealed.has(hintType) || state.guessed) return;
 
-  state.points -= CONFIG.hintCosts[hintType];
-  state.points = Math.max(0, state.points);
+  state.roundPoints -= CONFIG.hintCosts[hintType];
+  state.roundPoints = Math.max(0, state.roundPoints);
   state.revealed.add(hintType);
 
   render();
 }
 
-async function resetGame() {
+function getSeasonRange() {
+  const min = parseInt(els.seasonMin.value) || 1;
+  const max = parseInt(els.seasonMax.value) || 9;
+  return {
+    min: Math.max(1, Math.min(min, max)),
+    max: Math.min(20, Math.max(min, max))
+  };
+}
+
+async function startNewRound() {
   els.loading.style.display = 'block';
   els.resultPanel.style.display = 'none';
+  els.gamePanel.style.display = 'block';
+
+  // Update season range from inputs
+  state.seasonRange = getSeasonRange();
 
   try {
-    state = {
-      scene: await getValidScene(),
-      points: CONFIG.startingPoints,
-      revealed: new Set(),
-      guessed: false,
-      won: false
-    };
+    state.scene = await getValidScene();
+    state.roundPoints = CONFIG.startingPoints;
+    state.revealed = new Set();
+    state.guessed = false;
+    state.won = false;
 
+    // Clear inputs
     els.guessInput.value = '';
+    els.guessSeason.value = '';
+    els.guessEpisode.value = '';
     els.autocompleteList.classList.remove('active');
+
+    // Re-enable inputs
+    els.guessInput.disabled = false;
+    els.guessSeason.disabled = false;
+    els.guessEpisode.disabled = false;
+    els.submitGuess.disabled = false;
+
     render();
   } catch (err) {
-    els.quoteText.textContent = 'Error loading quote. Please refresh the page.';
+    els.quoteText.textContent = 'Error loading quote. Try adjusting your season range and refresh.';
     console.error(err);
   } finally {
     els.loading.style.display = 'none';
@@ -215,15 +261,45 @@ function submitGuess() {
   state.guessed = true;
   state.won = result.correct;
 
-  if (!state.won) {
-    state.points = 0;
+  // Calculate bonus points
+  let bonusText = [];
+  let bonusPoints = 0;
+
+  const guessedSeason = parseInt(els.guessSeason.value);
+  const guessedEpisode = parseInt(els.guessEpisode.value);
+  const actualSeason = state.scene.Episode.Season;
+  const actualEpisode = state.scene.Episode.EpisodeNumber;
+
+  if (guessedSeason && guessedSeason === actualSeason) {
+    bonusPoints += CONFIG.bonusPoints.season;
+    bonusText.push(`Season correct! +${CONFIG.bonusPoints.season}`);
+  } else if (guessedSeason) {
+    bonusText.push(`Season: guessed ${guessedSeason}, was ${actualSeason}`);
   }
 
-  render();
-  showResult(result);
+  if (guessedEpisode && guessedEpisode === actualEpisode) {
+    bonusPoints += CONFIG.bonusPoints.episode;
+    bonusText.push(`Episode # correct! +${CONFIG.bonusPoints.episode}`);
+  } else if (guessedEpisode) {
+    bonusText.push(`Episode: guessed ${guessedEpisode}, was ${actualEpisode}`);
+  }
+
+  // Final round score
+  if (!state.won) {
+    state.roundPoints = 0;
+  }
+  state.roundPoints += bonusPoints;
+
+  // Update totals
+  state.totalPoints += state.roundPoints;
+  state.roundsPlayed++;
+
+  // Show result
+  showResult(result, bonusText);
 }
 
-function showResult(result) {
+function showResult(result, bonusText) {
+  els.gamePanel.style.display = 'none';
   els.resultPanel.style.display = 'block';
 
   if (result.correct) {
@@ -234,20 +310,41 @@ function showResult(result) {
     els.resultText.className = 'incorrect';
   }
 
-  els.correctAnswer.textContent = `The episode was: "${result.actualTitle}"`;
-  els.finalScore.textContent = `Final score: ${state.points} points`;
+  // Show image
+  els.resultImage.src = getImageUrl(state.scene);
 
-  // Reveal everything on game end
-  state.revealed.add('image');
-  state.revealed.add('season');
-  state.revealed.add('episodeNumber');
-  render();
+  // Show episode info
+  const ep = state.scene.Episode;
+  els.resultEpisodeInfo.innerHTML = `<b>Season ${ep.Season}, Episode ${ep.EpisodeNumber}:</b> "${ep.Title}"`;
+
+  // Show bonus results
+  if (bonusText.length > 0) {
+    els.bonusResult.innerHTML = bonusText.join('<br>');
+  } else {
+    els.bonusResult.textContent = '';
+  }
+
+  // Show round score
+  els.roundScoreResult.innerHTML = `<b>Round Score:</b> ${state.roundPoints} pts`;
+
+  // Show session stats
+  els.sessionTotal.textContent = state.totalPoints;
+  els.sessionRounds.textContent = state.roundsPlayed;
+  els.sessionAvg.textContent = (state.totalPoints / state.roundsPlayed).toFixed(1);
+
+  // Disable inputs
+  els.guessInput.disabled = true;
+  els.guessSeason.disabled = true;
+  els.guessEpisode.disabled = true;
+  els.submitGuess.disabled = true;
 }
 
 // === RENDERING ===
 function render() {
-  // Score
-  els.score.textContent = state.points;
+  // Stats
+  els.totalScore.textContent = state.totalPoints;
+  els.roundScore.textContent = state.roundPoints;
+  els.roundsPlayed.textContent = state.roundsPlayed;
 
   if (!state.scene) return;
 
@@ -258,7 +355,7 @@ function render() {
   const hasAnyRevealed = state.revealed.size > 0;
   els.revealedPanel.style.display = hasAnyRevealed ? 'block' : 'none';
 
-  // Image
+  // Image hint
   if (state.revealed.has('image')) {
     els.imageContainer.style.display = 'block';
     els.sceneImage.src = getImageUrl(state.scene);
@@ -288,20 +385,20 @@ function render() {
     els.revealEpisode.disabled = false;
   }
 
-  // Disable inputs if guessed
+  // Disable hint buttons if guessed
   if (state.guessed) {
-    els.guessInput.disabled = true;
-    els.submitGuess.disabled = true;
     els.revealImage.disabled = true;
     els.revealSeason.disabled = true;
     els.revealEpisode.disabled = true;
-  } else {
-    els.guessInput.disabled = false;
-    els.submitGuess.disabled = false;
   }
 }
 
 // === AUTOCOMPLETE ===
+function getFilteredEpisodes() {
+  const range = getSeasonRange();
+  return episodes.filter(ep => ep.season >= range.min && ep.season <= range.max);
+}
+
 function setupAutocomplete() {
   let selectedIndex = -1;
 
@@ -313,7 +410,8 @@ function setupAutocomplete() {
       return;
     }
 
-    const matches = episodes
+    const filteredEpisodes = getFilteredEpisodes();
+    const matches = filteredEpisodes
       .filter(ep => ep.title.toLowerCase().includes(value))
       .slice(0, 8);
 
@@ -355,13 +453,13 @@ function setupAutocomplete() {
   });
 
   els.autocompleteList.addEventListener('click', (e) => {
-    if (e.target.tagName === 'LI') {
-      els.guessInput.value = e.target.dataset.title;
+    const li = e.target.closest('li');
+    if (li) {
+      els.guessInput.value = li.dataset.title;
       els.autocompleteList.classList.remove('active');
     }
   });
 
-  // Close autocomplete when clicking outside
   document.addEventListener('click', (e) => {
     if (!els.guessInput.contains(e.target) && !els.autocompleteList.contains(e.target)) {
       els.autocompleteList.classList.remove('active');
@@ -391,12 +489,12 @@ async function init() {
   els.revealSeason.addEventListener('click', () => revealHint('season'));
   els.revealEpisode.addEventListener('click', () => revealHint('episodeNumber'));
   els.submitGuess.addEventListener('click', submitGuess);
-  els.playAgain.addEventListener('click', resetGame);
+  els.nextRound.addEventListener('click', startNewRound);
 
   setupAutocomplete();
 
   // Start game
-  await resetGame();
+  await startNewRound();
 }
 
 init();

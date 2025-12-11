@@ -10,41 +10,68 @@
   <h1>Simpsons Quote Quiz</h1>
   <p>Guess the episode from the quote!</p>
 
-  <p><b>Score:</b> <span id="score">100</span> points</p>
+  <div id="settings-panel">
+    <label>Seasons:
+      <input type="number" id="season-min" min="1" max="20" value="1" style="width: 50px;">
+      to
+      <input type="number" id="season-max" min="1" max="20" value="9" style="width: 50px;">
+    </label>
+  </div>
 
-  <h2>The Quote</h2>
-  <p id="quote-text">Loading...</p>
+  <div id="stats-panel">
+    <p><b>Total:</b> <span id="total-score">0</span> pts | <b>Rounds:</b> <span id="rounds-played">0</span></p>
+  </div>
 
-  <div id="revealed-panel" style="display: none;">
-    <h2>Revealed</h2>
-    <p id="season-hint" style="display: none;">Season: <b id="season-value"></b></p>
-    <p id="episode-hint" style="display: none;">Episode: <b id="episode-value"></b></p>
-    <div id="image-container" style="display: none;">
-      <img id="scene-image" src="" alt="Scene screenshot" style="max-width: 100%;">
+  <div id="game-panel">
+    <h2>The Quote</h2>
+    <p id="quote-text">Loading...</p>
+
+    <div id="revealed-panel" style="display: none;">
+      <h2>Hints Revealed</h2>
+      <p id="season-hint" style="display: none;">Season: <b id="season-value"></b></p>
+      <p id="episode-hint" style="display: none;">Episode: <b id="episode-value"></b></p>
+      <div id="image-container" style="display: none;">
+        <img id="scene-image" src="" alt="Scene screenshot" style="max-width: 100%;">
+      </div>
     </div>
-  </div>
 
-  <h2>Hints</h2>
-  <p>
-    <button id="reveal-image">Reveal Image (-30 pts)</button>
-    <button id="reveal-season">Reveal Season (-20 pts)</button>
-    <button id="reveal-episode">Reveal Episode # (-40 pts)</button>
-  </p>
+    <h2>Hints</h2>
+    <p>Round points: <b id="round-score">100</b></p>
+    <p>
+      <button id="reveal-image">Reveal Image (-30 pts)</button>
+      <button id="reveal-season">Reveal Season (-20 pts)</button>
+      <button id="reveal-episode">Reveal Episode # (-40 pts)</button>
+    </p>
 
-  <h2>Your Guess</h2>
-  <div class="form-group">
-    <input type="text" id="guess-input" placeholder="Type episode title..." autocomplete="off" size="40">
-    <ul id="autocomplete-list" class="autocomplete-list"></ul>
+    <h2>Your Guess</h2>
+    <div class="form-group">
+      <input type="text" id="guess-input" placeholder="Type episode title..." autocomplete="off" size="40">
+      <ul id="autocomplete-list" class="autocomplete-list"></ul>
+    </div>
+
+    <h3>Bonus Guesses (optional, earn extra points!)</h3>
+    <div class="form-group bonus-guesses">
+      <label>Season: <input type="number" id="guess-season" min="1" max="20" style="width: 60px;" placeholder="#"></label>
+      <label>Episode: <input type="number" id="guess-episode" min="1" max="25" style="width: 60px;" placeholder="#"></label>
+    </div>
+    <p class="hint-text">+25 pts for correct season, +50 pts for correct episode number</p>
+
+    <p>
+      <button id="submit-guess">Submit Guess</button>
+    </p>
   </div>
-  <p>
-    <button id="submit-guess">Submit Guess</button>
-  </p>
 
   <div id="result-panel" style="display: none;">
     <h2 id="result-text"></h2>
-    <p id="correct-answer"></p>
-    <p id="final-score"></p>
-    <button id="play-again">Play Again</button>
+    <div id="result-image-container">
+      <img id="result-image" src="" alt="Scene screenshot" style="max-width: 100%;">
+    </div>
+    <p id="result-episode-info"></p>
+    <p id="bonus-result"></p>
+    <p id="round-score-result"></p>
+    <hr>
+    <p><b>Session Total:</b> <span id="session-total"></span> pts (<span id="session-rounds"></span> rounds, avg: <span id="session-avg"></span>)</p>
+    <button id="next-round">Next Quote</button>
   </div>
 
   <div id="loading" style="display: none;">
